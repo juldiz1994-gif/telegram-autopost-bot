@@ -71,7 +71,12 @@ async def generate_weekly_plan(niche: str) -> list[dict[str, Any]]:
             if attempt == 5:
                 raise RuntimeError(f"5 әрекеттен кейін де жоспар алынбады: {e}") from e
             msg = str(e).lower()
-            delay = 30.0 * attempt if ("503" in msg or "unavailable" in msg or "429" in msg) else float(2 ** attempt)
+            if "503" in msg or "unavailable" in msg:
+                delay = 10.0 * attempt
+            elif "429" in msg or "quota" in msg:
+                delay = 20.0 * attempt
+            else:
+                delay = float(2 ** attempt)
             logger.info("Қайта әрекет алдында %.0f сек күту...", delay)
             await asyncio.sleep(delay)
 

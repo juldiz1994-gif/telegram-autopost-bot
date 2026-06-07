@@ -17,8 +17,10 @@ _client = genai.Client(api_key=config.GEMINI_API_KEY)
 
 def _retry_delay(attempt: int, error: Exception) -> float:
     msg = str(error).lower()
-    if "503" in msg or "unavailable" in msg or "429" in msg or "quota" in msg:
-        return 30.0 * attempt
+    if "503" in msg or "unavailable" in msg:
+        return 10.0 * attempt
+    if "429" in msg or "quota" in msg:
+        return 20.0 * attempt
     return float(2 ** attempt)
 
 
