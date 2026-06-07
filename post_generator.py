@@ -1,0 +1,98 @@
+import asyncio
+import json
+import logging
+from typing import Any
+
+from google import genai
+from google.genai import types
+
+from config import config
+from database import db
+from prompts import FORMAT_PROMPTS
+
+logger = logging.getLogger(__name__)
+
+_client = genai.Client(api_key=config.GEMINI_API_KEY)
+
+
+async def generate_post(topic: str, format_type: str, niche: str) -> dict[str, Any]:
+    if format_type not in FORMAT_PROMPTS:
+        logger.warning("Белгісіз формат '%s', 'tips' қолданылады", format_type)
+        format_type = "tips"
+
+    prompt = FORMAT_PROMPTS[format_type](topic, niche)
+
+    for attempt in range(1, 4):
+        try:
+            response = await asyncio.to_thread(
+                _client.models.generate_content,
+                model=config.GEMINI_TEXT_MODEL,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    temperature=0.85,
+                ),
+            )
+            raw = response.text.strip()
+            data: dict = json.loads(raw)
+            text: str = data["text"]
+            image_prompt: str = data.get("image_prompt", "")
+
+            length = len(text)
+            if length < 500 or length > 1500:
+                logger.warning("Пост ұзындығы %d шек [500,1500]-дан тыс, %d-ші әрекет", length, attempt)
+                if attempt == 3:
+                    text = text[:1500] if length > 1500 else text
+                else:
+                    await asyncio.sleep(2)
+                    continue
+
+            return {"text": text, "image_prompt": image_prompt}
+
+        except (json.JSONDecodeError, KeyError, TypeError) as e:
+            logger.warning("Пост генерациясы %d-ші әрекет сәтсіз: %s", attempt, e)
+            if attempt == 3:
+                raise RuntimeError(f"3 әрекеттен кейін де пост алынбады: {e}") from e
+            await asyncio.sleep(2 ** attempt)
+
+    return {}
+
+
+async def generate_post_and_save(plan_item: dict) -> dict[str, Any]:
+    result = await generate_post(
+        topic=plan_item["topic"],
+        format_type=plan_item["format"],
+        niche=config.CONTENT_NICHE,
+    )
+    post_id = await db.save_post(
+        plan_id=plan_item["id"],
+        text=result["text"],
+        image_prompt=result["image_prompt"],
+    )
+    return {"id": post_id, "text": result["text"], "image_prompt": result["image_prompt"]}
+
+
+async def generate_posts_for_plan(plan_id: int | None = None) -> list[dict[str, Any]]:
+    plan_items = await db.get_plan(plan_id)
+    results = []
+    for item in plan_items:
+        item_dict = dict(item)
+        try:
+            post = await generate_post_and_save(item_dict)
+            results.append(post)
+            logger.info("Пост сақталды id=%d, тақырып: %s", post["id"], item_dict["topic"])
+        except Exception as e:
+            logger.error("Тақырып бойынша пост генерациясы сәтсіз '%s': %s", item_dict.get("topic"), e)
+        await asyncio.sleep(2)
+    return results
+
+
+if __name__ == "__main__":
+    async def _main() -> None:
+        await db.connect()
+        posts = await generate_posts_for_plan()
+        for p in posts:
+            print(f"Пост #{p['id']}: {p['text'][:80]}...")
+        await db.close()
+
+    asyncio.run(_main())
