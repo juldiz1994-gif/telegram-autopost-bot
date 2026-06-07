@@ -196,12 +196,10 @@ async def cmd_generate(message: Message, bot: Bot) -> None:
     else:
         post_id = post_item["id"]
 
-    await message.answer("🎨 Сурет генерацияланудад...")
-    post_record = await db.get_post_by_id(post_id)
-    await generate_image(post_record["image_prompt"] or "", post_id)
-
     await message.answer("👁 Алдын ала қарау жіберілуде...")
     await _send_post_preview(bot, post_id)
+    post_record = await db.get_post_by_id(post_id)
+    asyncio.create_task(generate_image(post_record["image_prompt"] or "", post_id))
 
 
 @router.message(Command("generate_all"))
@@ -228,11 +226,11 @@ async def cmd_generate_all(message: Message, bot: Bot) -> None:
         try:
             post_data = await generate_post_and_save(item)
             post_id = post_data["id"]
-            post_record = await db.get_post_by_id(post_id)
-            await generate_image(post_record["image_prompt"] or "", post_id)
             await _send_post_preview(bot, post_id)
+            post_record = await db.get_post_by_id(post_id)
+            asyncio.create_task(generate_image(post_record["image_prompt"] or "", post_id))
             success += 1
-            await asyncio.sleep(2)
+            await asyncio.sleep(1)
         except Exception as e:
             logger.error("Тақырып бойынша пост генерациясы сәтсіз '%s': %s", item.get("topic"), e)
 
@@ -348,8 +346,8 @@ async def cb_redo(callback: CallbackQuery, bot: Bot) -> None:
                 result["image_prompt"],
                 post_id,
             )
-        await generate_image(result["image_prompt"], post_id)
         await _send_post_preview(bot, post_id)
+        asyncio.create_task(generate_image(result["image_prompt"], post_id))
     except Exception as e:
         logger.error("#{} постын қайта жазу сәтсіз: %s", post_id, e)
         await bot.send_message(
@@ -414,8 +412,8 @@ async def process_edit(message: Message, state: FSMContext, bot: Bot) -> None:
                 post_id,
             )
 
-        await generate_image(new_image_prompt, post_id)
         await _send_post_preview(bot, post_id)
+        asyncio.create_task(generate_image(new_image_prompt, post_id))
 
     except Exception as e:
         logger.error("#{} постын өңдеу сәтсіз: %s", post_id, e)

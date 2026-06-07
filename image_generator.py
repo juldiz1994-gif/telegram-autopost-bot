@@ -56,8 +56,11 @@ async def generate_image(prompt: str, post_id: int) -> Optional[str]:
         except Exception as e:
             msg = str(e).lower()
             logger.warning("Сурет генерациясы %d-ші әрекет сәтсіз post_id=%d: %s", attempt, post_id, e)
+            if "limit: 0" in msg:
+                logger.warning("Сурет квотасы бітті (limit:0), retry болмайды post_id=%d", post_id)
+                return None
             if attempt < 4:
-                delay = 30.0 * attempt if ("503" in msg or "unavailable" in msg or "429" in msg) else 5.0
+                delay = 15.0 * attempt if ("503" in msg or "unavailable" in msg or "429" in msg) else 5.0
                 logger.info("Сурет retry алдында %.0f сек күту...", delay)
                 await asyncio.sleep(delay)
 
