@@ -27,7 +27,7 @@ def _next_weekday(target_dow: int) -> date:
 async def generate_weekly_plan(niche: str) -> list[dict[str, Any]]:
     prompt = PLAN_PROMPT.format(niche=niche)
 
-    for attempt in range(1, 4):
+    for attempt in range(1, 6):
         try:
             response = await asyncio.to_thread(
                 _client.models.generate_content,
@@ -66,11 +66,14 @@ async def generate_weekly_plan(niche: str) -> list[dict[str, Any]]:
             logger.info("Апталық жоспар сақталды: %d тақырып", len(enriched))
             return enriched
 
-        except (json.JSONDecodeError, ValueError, KeyError) as e:
+        except Exception as e:
             logger.warning("Жоспар генерациясы %d-ші әрекет сәтсіз: %s", attempt, e)
-            if attempt == 3:
-                raise RuntimeError(f"3 әрекеттен кейін де жоспар алынбады: {e}") from e
-            await asyncio.sleep(2 ** attempt)
+            if attempt == 5:
+                raise RuntimeError(f"5 әрекеттен кейін де жоспар алынбады: {e}") from e
+            msg = str(e).lower()
+            delay = 30.0 * attempt if ("503" in msg or "unavailable" in msg or "429" in msg) else float(2 ** attempt)
+            logger.info("Қайта әрекет алдында %.0f сек күту...", delay)
+            await asyncio.sleep(delay)
 
     return []
 

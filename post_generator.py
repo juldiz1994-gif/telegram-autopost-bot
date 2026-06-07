@@ -15,6 +15,13 @@ logger = logging.getLogger(__name__)
 _client = genai.Client(api_key=config.GEMINI_API_KEY)
 
 
+def _retry_delay(attempt: int, error: Exception) -> float:
+    msg = str(error).lower()
+    if "503" in msg or "unavailable" in msg or "429" in msg or "quota" in msg:
+        return 30.0 * attempt
+    return float(2 ** attempt)
+
+
 async def generate_post(topic: str, format_type: str, niche: str) -> dict[str, Any]:
     if format_type not in FORMAT_PROMPTS:
         logger.warning("Белгісіз формат '%s', 'tips' қолданылады", format_type)
@@ -22,7 +29,7 @@ async def generate_post(topic: str, format_type: str, niche: str) -> dict[str, A
 
     prompt = FORMAT_PROMPTS[format_type](topic, niche)
 
-    for attempt in range(1, 4):
+    for attempt in range(1, 6):
         try:
             response = await asyncio.to_thread(
                 _client.models.generate_content,
@@ -41,7 +48,7 @@ async def generate_post(topic: str, format_type: str, niche: str) -> dict[str, A
             length = len(text)
             if length < 500 or length > 1500:
                 logger.warning("Пост ұзындығы %d шек [500,1500]-дан тыс, %d-ші әрекет", length, attempt)
-                if attempt == 3:
+                if attempt == 5:
                     text = text[:1500] if length > 1500 else text
                 else:
                     await asyncio.sleep(2)
@@ -49,11 +56,13 @@ async def generate_post(topic: str, format_type: str, niche: str) -> dict[str, A
 
             return {"text": text, "image_prompt": image_prompt}
 
-        except (json.JSONDecodeError, KeyError, TypeError) as e:
+        except Exception as e:
             logger.warning("Пост генерациясы %d-ші әрекет сәтсіз: %s", attempt, e)
-            if attempt == 3:
-                raise RuntimeError(f"3 әрекеттен кейін де пост алынбады: {e}") from e
-            await asyncio.sleep(2 ** attempt)
+            if attempt == 5:
+                raise RuntimeError(f"5 әрекеттен кейін де пост алынбады: {e}") from e
+            delay = _retry_delay(attempt, e)
+            logger.info("Қайта әрекет алдында %.0f сек күту...", delay)
+            await asyncio.sleep(delay)
 
     return {}
 

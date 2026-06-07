@@ -21,7 +21,7 @@ async def generate_image(prompt: str, post_id: int) -> Optional[str]:
     os.makedirs(IMAGES_DIR, exist_ok=True)
     full_prompt = IMAGE_PROMPT_TEMPLATE.format(prompt=prompt)
 
-    for attempt in range(1, 3):
+    for attempt in range(1, 5):
         try:
             response = await asyncio.to_thread(
                 _client.models.generate_content,
@@ -40,7 +40,7 @@ async def generate_image(prompt: str, post_id: int) -> Optional[str]:
 
             if not image_data:
                 logger.warning("Сурет деректері жоқ post_id=%d, %d-ші әрекет", post_id, attempt)
-                if attempt < 2:
+                if attempt < 4:
                     await asyncio.sleep(5)
                     continue
                 return None
@@ -54,11 +54,14 @@ async def generate_image(prompt: str, post_id: int) -> Optional[str]:
             return file_path
 
         except Exception as e:
+            msg = str(e).lower()
             logger.warning("Сурет генерациясы %d-ші әрекет сәтсіз post_id=%d: %s", attempt, post_id, e)
-            if attempt < 2:
-                await asyncio.sleep(5)
+            if attempt < 4:
+                delay = 30.0 * attempt if ("503" in msg or "unavailable" in msg or "429" in msg) else 5.0
+                logger.info("Сурет retry алдында %.0f сек күту...", delay)
+                await asyncio.sleep(delay)
 
-    logger.error("Сурет генерациясы 2 әрекеттен кейін де сәтсіз post_id=%d", post_id)
+    logger.error("Сурет генерациясы 4 әрекеттен кейін де сәтсіз post_id=%d", post_id)
     return None
 
 
