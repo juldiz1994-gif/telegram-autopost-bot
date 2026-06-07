@@ -1,6 +1,6 @@
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import datetime
 
 from aiogram import Bot
 from aiogram.types import FSInputFile
@@ -42,7 +42,7 @@ async def publish_post(bot: Bot, post_id: int) -> bool:
             post_id,
             "published",
             message_id=msg.message_id,
-            published_at=datetime.now(timezone.utc),
+            published_at=datetime.utcnow(),
         )
         logger.info("Пост id=%d арнаға жарияланды: %s", post_id, channel_id)
         return True
