@@ -48,10 +48,10 @@ async def generate_post(topic: str, format_type: str, niche: str) -> dict[str, A
             image_prompt: str = data.get("image_prompt", "")
 
             length = len(text)
-            if length < 500 or length > 1500:
-                logger.warning("Пост ұзындығы %d шек [500,1500]-дан тыс, %d-ші әрекет", length, attempt)
+            if length < 500 or length > 900:
+                logger.warning("Пост ұзындығы %d шек [500,900]-дан тыс, %d-ші әрекет", length, attempt)
                 if attempt == 5:
-                    text = text[:1500] if length > 1500 else text
+                    text = text[:900] if length > 900 else text
                 else:
                     await asyncio.sleep(2)
                     continue
