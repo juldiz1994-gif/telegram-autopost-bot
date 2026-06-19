@@ -192,11 +192,10 @@ async def cb_frequency_chosen(callback: CallbackQuery, state: FSMContext) -> Non
 async def _generate_and_moderate(bot: Bot, post_data: dict, user_id: int) -> None:
     try:
         from image_generator import generate_image
-        from handlers.moderation import send_post_preview_to_user
         await generate_image(post_data["image_prompt"], post_data["id"])
-        await send_post_preview_to_user(bot, post_data["id"], user_id)
+        await db.update_post_status(post_data["id"], "approved")
     except Exception as e:
-        logger.error("Generate+moderate error user_id=%d post_id=%d: %s", user_id, post_data["id"], e)
+        logger.error("Generate+approve error user_id=%d post_id=%d: %s", user_id, post_data["id"], e)
 
 
 async def _bootstrap_user(bot: Bot, user_id: int, niche: str) -> None:

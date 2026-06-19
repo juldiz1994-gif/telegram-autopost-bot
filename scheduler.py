@@ -80,7 +80,6 @@ class ContentScheduler:
             from content_planner import generate_weekly_plan
             from post_generator import generate_post_and_save
             from image_generator import generate_image
-            from handlers.moderation import send_post_preview_to_user
 
             await self._bot.send_message(user_id, "📅 Жаңа апталық жоспар жасалуда...")
             plan = await generate_weekly_plan(niche, user_id)
@@ -89,7 +88,7 @@ class ContentScheduler:
                 try:
                     post_data = await generate_post_and_save(item, user_id)
                     await generate_image(post_data["image_prompt"], post_data["id"])
-                    await send_post_preview_to_user(self._bot, post_data["id"], user_id)
+                    await db.update_post_status(post_data["id"], "approved")
                 except Exception as e:
                     logger.error("Regenerate post error user_id=%d: %s", user_id, e)
         except Exception as e:
