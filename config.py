@@ -18,6 +18,8 @@ class Config:
         self.TELEGRAM_CHANNEL_ID: str = self._require("TELEGRAM_CHANNEL_ID")
         self.TELEGRAM_ADMIN_ID: int = int(self._require("TELEGRAM_ADMIN_ID"))
         self.CONTENT_NICHE: str = self._require("CONTENT_NICHE")
+        self.KASPI_PHONE: str = self._require("KASPI_PHONE")
+        self.TRIAL_DAYS: int = int(os.getenv("TRIAL_DAYS", "5"))
         self.PUBLISH_TIMES: list[time] = self._parse_times(
             os.getenv("PUBLISH_TIMES", "10:00,18:00")
         )
