@@ -6,7 +6,7 @@ Tests: no automated tests (Railway-only deploy; manual test via Telegram)
 
 ## Fix Report (Final Review)
 Status: DONE
-Commits: <sha>
+Commits: 4c18a4d
 Fixes applied:
 1. send_post_preview_to_user: update_post_status moved inside try block
 2. confirm_payment: added AND status='pending' idempotency guard
