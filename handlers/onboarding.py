@@ -207,6 +207,7 @@ async def _bootstrap_user(bot: Bot, user_id: int, niche: str) -> None:
     """Generate first weekly plan + posts after registration."""
     try:
         from content_planner import generate_weekly_plan
+        from post_generator import generate_post_and_save
         from services.user_scheduler import activate_user_schedule
 
         plan = await generate_weekly_plan(niche, user_id)
@@ -215,19 +216,14 @@ async def _bootstrap_user(bot: Bot, user_id: int, niche: str) -> None:
         await bot.send_message(
             user_id,
             f"✅ Апталық жоспар дайын! {len(plan)} тақырып жасалды.\n"
-            f"Посттар фотомен бірге жасалуда, жақында бекіту үшін жіберіледі...",
+            f"⏳ Посттар мен суреттер жасалуда, кесте бойынша каналда жарияланады...",
         )
 
-        # Generate posts for all plan items
-        from post_generator import generate_post_and_save
-
-        from handlers.moderation import send_post_preview_to_user
         for item in plan:
             try:
                 post_data = await generate_post_and_save(item, user_id)
-                # Generate image and send for moderation without blocking the loop
                 asyncio.create_task(_generate_and_moderate(bot, post_data, user_id))
-                await asyncio.sleep(1)  # slight delay to avoid Gemini rate limits
+                await asyncio.sleep(1)
             except Exception as e:
                 logger.error("Bootstrap post error user_id=%d: %s", user_id, e)
 
