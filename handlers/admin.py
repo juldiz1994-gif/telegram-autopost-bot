@@ -112,7 +112,7 @@ async def cb_admin_users(callback: CallbackQuery) -> None:
     await callback.message.answer("\n".join(lines), parse_mode="HTML")
 
 
-@admin_router.message(Command(pattern=r"user_\d+"))
+@admin_router.message(F.text.regexp(r"^/user_\d+$"))
 async def cmd_user_detail(message: Message) -> None:
     user_id = int(message.text.split("_")[1])
     user = await db.get_user(user_id)
