@@ -42,6 +42,30 @@ def _admin_main_keyboard() -> InlineKeyboardMarkup:
     ])
 
 
+@admin_router.message(Command("reset_user"))
+async def cmd_reset_user(message: Message) -> None:
+    parts = (message.text or "").split()
+    if len(parts) < 2:
+        await message.answer("Қолдану: /reset_user <user_id>")
+        return
+    try:
+        target_id = int(parts[1])
+    except ValueError:
+        await message.answer("❌ user_id сан болуы керек")
+        return
+    async with db._pool.acquire() as conn:
+        posts = await conn.fetchval("SELECT COUNT(*) FROM posts WHERE user_id=$1", target_id)
+        plans = await conn.fetchval("SELECT COUNT(*) FROM content_plans WHERE user_id=$1", target_id)
+        await conn.execute("DELETE FROM posts WHERE user_id=$1", target_id)
+        await conn.execute("DELETE FROM content_plans WHERE user_id=$1", target_id)
+        await conn.execute("DELETE FROM users WHERE id=$1", target_id)
+    await message.answer(
+        f"✅ user_id={target_id} толық жойылды.\n"
+        f"🗑 Посттар: {posts}, Жоспарлар: {plans}\n"
+        f"Енді /start жазып қайта тіркеле алады."
+    )
+
+
 @admin_router.message(Command("admin"))
 async def cmd_admin(message: Message) -> None:
     stats = await db.get_all_users_stats()
