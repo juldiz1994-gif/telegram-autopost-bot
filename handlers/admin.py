@@ -55,9 +55,9 @@ async def cmd_reset_user(message: Message) -> None:
         return
     async with db._pool.acquire() as conn:
         posts = await conn.fetchval("SELECT COUNT(*) FROM posts WHERE user_id=$1", target_id)
-        plans = await conn.fetchval("SELECT COUNT(*) FROM content_plans WHERE user_id=$1", target_id)
+        plans = await conn.fetchval("SELECT COUNT(*) FROM content_plan WHERE user_id=$1", target_id)
         await conn.execute("DELETE FROM posts WHERE user_id=$1", target_id)
-        await conn.execute("DELETE FROM content_plans WHERE user_id=$1", target_id)
+        await conn.execute("DELETE FROM content_plan WHERE user_id=$1", target_id)
         await conn.execute("DELETE FROM users WHERE id=$1", target_id)
     await message.answer(
         f"✅ user_id={target_id} толық жойылды.\n"
