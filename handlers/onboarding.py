@@ -5,6 +5,7 @@ from aiogram import Bot, F, Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+from aiogram.fsm.storage.base import BaseStorage, StorageKey
 from aiogram.types import (
     CallbackQuery,
     ChatMemberUpdated,
@@ -90,18 +91,22 @@ async def process_niche(message: Message, state: FSMContext) -> None:
 
 
 @onboarding_router.my_chat_member(F.new_chat_member.status.in_({"administrator"}))
-async def on_bot_added_as_admin(event: ChatMemberUpdated, state: FSMContext, bot: Bot) -> None:
+async def on_bot_added_as_admin(event: ChatMemberUpdated, bot: Bot, fsm_storage: BaseStorage) -> None:
+    if not event.from_user:
+        return
     user_id = event.from_user.id
-    # Only handle if this user is in waiting_channel state
-    user_state = await state.get_state()
-    if user_state != OnboardingState.waiting_channel.state:
+
+    # FSM state is stored under the private-chat key (chat_id == user_id)
+    private_key = StorageKey(bot_id=bot.id, chat_id=user_id, user_id=user_id)
+    current_state = await fsm_storage.get_state(private_key)
+    if current_state != OnboardingState.waiting_channel.state:
         return
 
     channel_id = event.chat.id
     channel_title = event.chat.title or str(channel_id)
 
-    await state.update_data(channel_id=channel_id, channel_title=channel_title)
-    await state.set_state(OnboardingState.waiting_channel_confirm)
+    await fsm_storage.update_data(private_key, {"channel_id": channel_id, "channel_title": channel_title})
+    await fsm_storage.set_state(private_key, OnboardingState.waiting_channel_confirm.state)
 
     await bot.send_message(
         user_id,

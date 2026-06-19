@@ -24,7 +24,8 @@ async def main() -> None:
     await db.init_db()
 
     bot = Bot(token=config.TELEGRAM_BOT_TOKEN)
-    dp = Dispatcher(storage=MemoryStorage())
+    storage = MemoryStorage()
+    dp = Dispatcher(storage=storage)
     setup_dispatcher(dp)
 
     sched = ContentScheduler(bot)
@@ -53,6 +54,7 @@ async def main() -> None:
         await dp.start_polling(
             bot,
             allowed_updates=dp.resolve_used_update_types() + ["my_chat_member"],
+            fsm_storage=storage,
         )
     finally:
         sched.stop()
