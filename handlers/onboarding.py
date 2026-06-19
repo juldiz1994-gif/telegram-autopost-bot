@@ -189,6 +189,16 @@ async def cb_frequency_chosen(callback: CallbackQuery, state: FSMContext) -> Non
     asyncio.create_task(_bootstrap_user(callback.message.bot, user.id, data["niche"]))
 
 
+async def _generate_and_moderate(bot: Bot, post_data: dict, user_id: int) -> None:
+    try:
+        from image_generator import generate_image
+        from handlers.moderation import send_post_preview_to_user
+        await generate_image(post_data["image_prompt"], post_data["id"])
+        await send_post_preview_to_user(bot, post_data["id"], user_id)
+    except Exception as e:
+        logger.error("Generate+moderate error user_id=%d post_id=%d: %s", user_id, post_data["id"], e)
+
+
 async def _bootstrap_user(bot: Bot, user_id: int, niche: str) -> None:
     """Generate first weekly plan + posts after registration."""
     try:
@@ -201,21 +211,19 @@ async def _bootstrap_user(bot: Bot, user_id: int, niche: str) -> None:
         await bot.send_message(
             user_id,
             f"✅ Апталық жоспар дайын! {len(plan)} тақырып жасалды.\n"
-            f"Посттар генерацияланады, жақында аласың...",
+            f"Посттар фотомен бірге жасалуда, жақында бекіту үшін жіберіледі...",
         )
 
         # Generate posts for all plan items
         from post_generator import generate_post_and_save
-        from image_generator import generate_image
 
+        from handlers.moderation import send_post_preview_to_user
         for item in plan:
             try:
                 post_data = await generate_post_and_save(item, user_id)
-                await bot.send_message(user_id, "⏳ Пост жасалды, сурет генерацияланады...")
-                await generate_image(post_data["image_prompt"], post_data["id"])
-                # Send for moderation
-                from handlers.moderation import send_post_preview_to_user
-                await send_post_preview_to_user(bot, post_data["id"], user_id)
+                # Generate image and send for moderation without blocking the loop
+                asyncio.create_task(_generate_and_moderate(bot, post_data, user_id))
+                await asyncio.sleep(1)  # slight delay to avoid Gemini rate limits
             except Exception as e:
                 logger.error("Bootstrap post error user_id=%d: %s", user_id, e)
 
