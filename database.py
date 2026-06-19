@@ -245,6 +245,7 @@ class Database:
         updates["status"] = status
         keys = list(updates.keys())
         values = list(updates.values())
+        # Column names come from a hardcoded allowlist — no SQL injection risk
         set_clauses = ", ".join(f"{k} = ${i + 2}" for i, k in enumerate(keys))
         async with self._pool.acquire() as conn:
             await conn.execute(
@@ -335,21 +336,22 @@ class Database:
             )
             if not row:
                 return None
-            await conn.execute(
-                """
-                UPDATE payments
-                SET status = 'confirmed', confirmed_at = NOW(), confirmed_by = $2
-                WHERE id = $1
-                """,
-                payment_id, confirmed_by,
-            )
-            await conn.execute(
-                """
-                UPDATE users SET status = 'active', subscription_ends_at = $2
-                WHERE id = $1
-                """,
-                row["user_id"], sub_ends,
-            )
+            async with conn.transaction():
+                await conn.execute(
+                    """
+                    UPDATE payments
+                    SET status = 'confirmed', confirmed_at = NOW(), confirmed_by = $2
+                    WHERE id = $1
+                    """,
+                    payment_id, confirmed_by,
+                )
+                await conn.execute(
+                    """
+                    UPDATE users SET status = 'active', subscription_ends_at = $2
+                    WHERE id = $1
+                    """,
+                    row["user_id"], sub_ends,
+                )
             return row["user_id"]
 
     async def reject_payment(self, payment_id: int) -> Optional[int]:
