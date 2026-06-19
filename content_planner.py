@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 from datetime import date, timedelta
-from typing import Any
+from typing import Any, Optional
 
 from google import genai
 from google.genai import types
@@ -24,7 +24,7 @@ def _next_weekday(target_dow: int) -> date:
     return today + timedelta(days=days_ahead)
 
 
-async def generate_weekly_plan(niche: str) -> list[dict[str, Any]]:
+async def generate_weekly_plan(niche: str, user_id: Optional[int] = None) -> list[dict[str, Any]]:
     prompt = PLAN_PROMPT.format(niche=niche)
 
     for attempt in range(1, 6):
@@ -59,7 +59,7 @@ async def generate_weekly_plan(niche: str) -> list[dict[str, Any]]:
                     "scheduled_time": scheduled_time,
                 })
 
-            plan_ids = await db.save_plan(niche, enriched)
+            plan_ids = await db.save_plan(niche, enriched, user_id=user_id)
             for i, pid in enumerate(plan_ids):
                 enriched[i]["id"] = pid
 

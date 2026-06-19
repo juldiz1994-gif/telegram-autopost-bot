@@ -1,7 +1,7 @@
 import asyncio
 import json
 import logging
-from typing import Any
+from typing import Any, Optional
 
 from google import genai
 from google.genai import types
@@ -69,16 +69,18 @@ async def generate_post(topic: str, format_type: str, niche: str) -> dict[str, A
     return {}
 
 
-async def generate_post_and_save(plan_item: dict) -> dict[str, Any]:
+async def generate_post_and_save(plan_item: dict,
+                                  user_id: Optional[int] = None) -> dict[str, Any]:
     result = await generate_post(
         topic=plan_item["topic"],
         format_type=plan_item["format"],
-        niche=config.CONTENT_NICHE,
+        niche=plan_item.get("niche") or config.CONTENT_NICHE,
     )
     post_id = await db.save_post(
         plan_id=plan_item["id"],
         text=result["text"],
         image_prompt=result["image_prompt"],
+        user_id=user_id,
     )
     return {"id": post_id, "text": result["text"], "image_prompt": result["image_prompt"]}
 

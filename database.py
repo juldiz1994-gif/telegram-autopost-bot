@@ -109,16 +109,19 @@ class Database:
             """)
         logger.info("Database tables initialized")
 
-    async def save_plan(self, niche: str, items: list[dict]) -> list[int]:
+    async def save_plan(self, niche: str, items: list[dict],
+                        user_id: Optional[int] = None) -> list[int]:
         ids = []
         async with self._pool.acquire() as conn:
             for item in items:
                 row_id = await conn.fetchval(
                     """
-                    INSERT INTO content_plan (niche, topic, format, description, scheduled_date, scheduled_time)
-                    VALUES ($1, $2, $3, $4, $5, $6)
+                    INSERT INTO content_plan
+                        (user_id, niche, topic, format, description, scheduled_date, scheduled_time)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7)
                     RETURNING id
                     """,
+                    user_id,
                     niche,
                     item["topic"],
                     item["format"],
@@ -127,7 +130,7 @@ class Database:
                     item["scheduled_time"],
                 )
                 ids.append(row_id)
-        logger.info("Saved %d plan items", len(ids))
+        logger.info("Saved %d plan items for user_id=%s", len(ids), user_id)
         return ids
 
     async def get_plan(self, plan_id: Optional[int] = None) -> list[asyncpg.Record]:
