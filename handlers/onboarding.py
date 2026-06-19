@@ -46,16 +46,21 @@ def _confirm_channel_keyboard(channel_id: int) -> InlineKeyboardMarkup:
 async def cmd_start(message: Message, state: FSMContext) -> None:
     user = await db.get_user(message.from_user.id)
     if user:
-        status_labels = {
-            "trial": f"⏳ Сынақ мерзімі: {user['trial_ends_at'].strftime('%d.%m.%Y')}-ге дейін",
-            "active": f"✅ Белсенді: {user['subscription_ends_at'].strftime('%d.%m.%Y')}-ге дейін",
-            "expired": "❌ Мерзімі өткен. Жалғастыру үшін чек жібер.",
-            "blocked": "⛔ Бұғатталған. Қолдауға хабарлас.",
-        }
+        status = user["status"]
+        if status == "trial" and user.get("trial_ends_at"):
+            status_line = f"⏳ Сынақ мерзімі: {user['trial_ends_at'].strftime('%d.%m.%Y')}-ге дейін"
+        elif status == "active" and user.get("subscription_ends_at"):
+            status_line = f"✅ Белсенді: {user['subscription_ends_at'].strftime('%d.%m.%Y')}-ге дейін"
+        elif status == "expired":
+            status_line = "❌ Мерзімі өткен. Жалғастыру үшін чек жібер."
+        elif status == "blocked":
+            status_line = "⛔ Бұғатталған. Қолдауға хабарлас."
+        else:
+            status_line = f"📌 Статус: {status}"
         await message.answer(
             f"👋 Қайта келдің!\n\n"
             f"📋 Ниша: {user['niche']}\n"
-            f"{status_labels.get(user['status'], user['status'])}\n\n"
+            f"{status_line}\n\n"
             f"📬 /queue — посттар кезегі\n"
             f"📊 /my_stats — статистика"
         )
