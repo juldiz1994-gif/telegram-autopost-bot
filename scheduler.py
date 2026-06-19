@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from typing import Optional
 
@@ -64,15 +65,35 @@ class ContentScheduler:
             else:
                 logger.error("Scheduler: пост id=%d жариялау сәтсіз", post["id"])
         else:
-            logger.info("Scheduler: user_id=%d үшін бекітілген пост жоқ", user_id)
-            try:
-                await self._bot.send_message(
-                    user_id,
-                    "⏰ Жариялау уақыты келді, бірақ бекітілген пост жоқ.\n"
-                    "Жаңа пост жасалуда...",
-                )
-            except Exception as e:
-                logger.error("user_id=%d хабарлама жіберу сәтсіз: %s", user_id, e)
+            # Check if posts are already in the moderation pipeline
+            pending = await db.get_next_post_for_user(user_id, "pending_review")
+            draft = await db.get_next_post_for_user(user_id, "draft")
+            if pending or draft:
+                logger.info("Scheduler: user_id=%d постар модерацияда күтуде", user_id)
+            else:
+                # No content at all — generate a new weekly plan
+                logger.info("Scheduler: user_id=%d контент таусылды, жаңа жоспар жасалуда", user_id)
+                asyncio.create_task(self._regenerate_plan(user_id, user["niche"]))
+
+    async def _regenerate_plan(self, user_id: int, niche: str) -> None:
+        try:
+            from content_planner import generate_weekly_plan
+            from post_generator import generate_post_and_save
+            from image_generator import generate_image
+            from handlers.moderation import send_post_preview_to_user
+
+            await self._bot.send_message(user_id, "📅 Жаңа апталық жоспар жасалуда...")
+            plan = await generate_weekly_plan(niche, user_id)
+
+            for item in plan:
+                try:
+                    post_data = await generate_post_and_save(item, user_id)
+                    await generate_image(post_data["image_prompt"], post_data["id"])
+                    await send_post_preview_to_user(self._bot, post_data["id"], user_id)
+                except Exception as e:
+                    logger.error("Regenerate post error user_id=%d: %s", user_id, e)
+        except Exception as e:
+            logger.error("Regenerate plan error user_id=%d: %s", user_id, e)
 
     def stop(self) -> None:
         self._scheduler.shutdown(wait=False)
