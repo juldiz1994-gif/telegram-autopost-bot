@@ -24,6 +24,14 @@ class ContentScheduler:
         users = await db.get_active_users()
         for user in users:
             self.add_user_jobs(dict(user))
+        # Auto-process posts that have no image (e.g. after restart)
+        self._scheduler.add_job(
+            self._process_pending_images,
+            "interval",
+            minutes=5,
+            id="process_pending_images",
+            replace_existing=True,
+        )
         logger.info("Scheduler запущен, %d пайдаланушы жүктелді", len(users))
 
     def add_user_jobs(self, user: dict) -> None:
@@ -93,6 +101,32 @@ class ContentScheduler:
                     logger.error("Regenerate post error user_id=%d: %s", user_id, e)
         except Exception as e:
             logger.error("Regenerate plan error user_id=%d: %s", user_id, e)
+
+    async def _process_pending_images(self) -> None:
+        """Find posts without images, generate them, and auto-approve."""
+        try:
+            from image_generator import generate_image
+            async with db._pool.acquire() as conn:
+                posts = await conn.fetch(
+                    """SELECT id, user_id, image_prompt FROM posts
+                       WHERE status IN ('pending_review', 'draft')
+                       AND (image_path IS NULL OR image_path = '')
+                       LIMIT 10"""
+                )
+            if not posts:
+                return
+            logger.info("Auto-image job: %d пост өңделеді", len(posts))
+            for post in posts:
+                try:
+                    await generate_image(post["image_prompt"], post["id"])
+                    await db.update_post_status(post["id"], "approved")
+                    logger.info("Auto-approved post id=%d user_id=%d", post["id"], post["user_id"])
+                except Exception as e:
+                    logger.error("Auto-image error post id=%d: %s", post["id"], e)
+                    # Approve even without image so content doesn't get stuck
+                    await db.update_post_status(post["id"], "approved")
+        except Exception as e:
+            logger.error("_process_pending_images error: %s", e)
 
     def stop(self) -> None:
         self._scheduler.shutdown(wait=False)
