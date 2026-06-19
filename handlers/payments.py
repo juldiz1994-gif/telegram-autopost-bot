@@ -2,6 +2,8 @@ import logging
 
 from aiogram import F, Router
 from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message, PhotoSize
 
 from config import config
@@ -11,8 +13,12 @@ logger = logging.getLogger(__name__)
 payments_router = Router()
 
 
+class PaymentState(StatesGroup):
+    waiting_for_check = State()
+
+
 @payments_router.message(Command("pay"))
-async def cmd_pay(message: Message) -> None:
+async def cmd_pay(message: Message, state: FSMContext) -> None:
     user = await db.get_user(message.from_user.id)
     if not user:
         await message.answer("❌ Тіркелмегенсің. /start жаз.")
@@ -22,6 +28,7 @@ async def cmd_pay(message: Message) -> None:
             f"✅ Жазылымың белсенді: {user['subscription_ends_at'].strftime('%d.%m.%Y')}-ге дейін."
         )
         return
+    await state.set_state(PaymentState.waiting_for_check)
     await message.answer(
         f"💳 <b>Жазылым төлемі</b>\n\n"
         f"Сома: <b>990 тг/ай</b>\n"
@@ -32,11 +39,12 @@ async def cmd_pay(message: Message) -> None:
     )
 
 
-@payments_router.message(F.photo)
-async def handle_check_photo(message: Message) -> None:
+@payments_router.message(PaymentState.waiting_for_check, F.photo)
+async def handle_check_photo(message: Message, state: FSMContext) -> None:
+    await state.clear()
     user = await db.get_user(message.from_user.id)
     if not user:
-        return  # Not registered, ignore photo
+        return
 
     if user["status"] == "active":
         await message.answer("✅ Жазылымың белсенді, төлем қажет емес.")

@@ -74,10 +74,9 @@ async def send_post_preview_to_user(bot: Bot, post_id: int, user_id: int) -> Non
                 parse_mode="HTML",
                 reply_markup=keyboard,
             )
+        await db.update_post_status(post_id, "pending_review")
     except TelegramBadRequest as e:
         logger.error("Post %d preview send failed to user %d: %s", post_id, user_id, e)
-
-    await db.update_post_status(post_id, "pending_review")
 
 
 @moderation_router.message(Command("queue"))
