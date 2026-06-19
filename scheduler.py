@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 
 import pytz
 from aiogram import Bot
@@ -17,47 +18,71 @@ class ContentScheduler:
         self._bot = bot
         self._scheduler = AsyncIOScheduler(timezone=config.TIMEZONE)
 
-    def start(self) -> None:
+    async def start(self) -> None:
+        self._scheduler.start()
+        users = await db.get_active_users()
+        for user in users:
+            self.add_user_jobs(dict(user))
+        logger.info("Scheduler запущен, %d пайдаланушы жүктелді", len(users))
+
+    def add_user_jobs(self, user: dict) -> None:
+        user_id = user["id"]
+        times_str: str = user.get("publish_times") or "10:00,18:00"
         tz = pytz.timezone(config.TIMEZONE)
-        for publish_time in config.PUBLISH_TIMES:
+        for t in times_str.split(","):
+            t = t.strip()
+            hour, minute = t.split(":")
+            job_id = f"publish_{user_id}_{t.replace(':', '')}"
             self._scheduler.add_job(
-                self.check_and_publish,
-                CronTrigger(
-                    hour=publish_time.hour,
-                    minute=publish_time.minute,
-                    timezone=tz,
-                ),
-                id=f"publish_{publish_time.hour:02d}{publish_time.minute:02d}",
+                self._publish_for_user,
+                CronTrigger(hour=int(hour), minute=int(minute), timezone=tz),
+                id=job_id,
+                args=[user_id],
                 replace_existing=True,
             )
-            logger.info(
-                "Жариялау тапсырмасы жоспарланды: %02d:%02d %s",
-                publish_time.hour,
-                publish_time.minute,
-                config.TIMEZONE,
-            )
-        self._scheduler.start()
+        logger.info("Jobs добавлены для user_id=%d", user_id)
 
-    async def check_and_publish(self) -> None:
-        logger.info("Scheduler: бекітілген посттарды тексеру")
-        post = await db.get_next_post("approved")
+    def remove_user_jobs(self, user_id: int) -> None:
+        removed = 0
+        for job in self._scheduler.get_jobs():
+            if job.id.startswith(f"publish_{user_id}_"):
+                job.remove()
+                removed += 1
+        logger.info("Jobs удалены для user_id=%d (%d шт)", user_id, removed)
+
+    async def _publish_for_user(self, user_id: int) -> None:
+        user = await db.get_user(user_id)
+        if not user or user["status"] not in ("trial", "active"):
+            self.remove_user_jobs(user_id)
+            return
+
+        post = await db.get_next_post_for_user(user_id, "approved")
         if post:
-            success = await publish_post(self._bot, post["id"])
+            success = await publish_post(self._bot, post["id"], user["channel_id"])
             if success:
-                logger.info("Scheduler: пост id=%d жарияланды", post["id"])
+                logger.info("Scheduler: пост id=%d, user_id=%d жарияланды", post["id"], user_id)
             else:
                 logger.error("Scheduler: пост id=%d жариялау сәтсіз", post["id"])
         else:
-            logger.info("Scheduler: бекітілген пост жоқ, әкімшіге еске салу жіберілді")
+            logger.info("Scheduler: user_id=%d үшін бекітілген пост жоқ", user_id)
             try:
                 await self._bot.send_message(
-                    config.TELEGRAM_ADMIN_ID,
-                    "⏰ Жариялау уақыты келді! Бірақ бекітілген посттар жоқ.\n"
-                    "Жаңа пост жасау үшін /generate пайдаланыңыз.",
+                    user_id,
+                    "⏰ Жариялау уақыты келді, бірақ бекітілген пост жоқ.\n"
+                    "Жаңа пост жасалуда...",
                 )
             except Exception as e:
-                logger.error("Әкімшіге еске салу жіберу сәтсіз: %s", e)
+                logger.error("user_id=%d хабарлама жіберу сәтсіз: %s", user_id, e)
 
     def stop(self) -> None:
         self._scheduler.shutdown(wait=False)
         logger.info("Scheduler тоқтатылды")
+
+
+scheduler: Optional[ContentScheduler] = None
+
+
+def get_scheduler() -> ContentScheduler:
+    if scheduler is None:
+        raise RuntimeError("Scheduler инициализацияланбаған")
+    return scheduler

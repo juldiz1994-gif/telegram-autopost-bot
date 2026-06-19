@@ -5,7 +5,6 @@ from datetime import datetime
 from aiogram import Bot
 from aiogram.types import FSInputFile
 
-from config import config
 from database import db
 
 logger = logging.getLogger(__name__)
@@ -13,7 +12,7 @@ logger = logging.getLogger(__name__)
 CAPTION_LIMIT = 1024
 
 
-async def publish_post(bot: Bot, post_id: int) -> bool:
+async def publish_post(bot: Bot, post_id: int, channel_id: int) -> bool:
     post = await db.get_post_by_id(post_id)
     if not post:
         logger.error("Пост id=%d табылмады", post_id)
@@ -25,7 +24,6 @@ async def publish_post(bot: Bot, post_id: int) -> bool:
 
     text: str = post["text"]
     image_path: str | None = post["image_path"]
-    channel_id = config.TELEGRAM_CHANNEL_ID
 
     try:
         if image_path and os.path.exists(image_path):
