@@ -29,6 +29,8 @@ async def main() -> None:
     sched = ContentScheduler(bot)
     scheduler_module.scheduler = sched
     await sched.start()
+    from services.subscription import start_subscription_service
+    start_subscription_service(bot, sched._scheduler)
 
     logger.info("Бот іске қосылды")
 
