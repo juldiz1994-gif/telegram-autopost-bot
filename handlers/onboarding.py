@@ -150,7 +150,6 @@ async def cb_frequency_chosen(callback: CallbackQuery, state: FSMContext) -> Non
     await callback.answer()
     freq = int(callback.data.split(":")[1])
     data = await state.get_data()
-    await state.clear()
 
     publish_times = "10:00,18:00" if freq == 2 else "10:00"
 
@@ -165,6 +164,7 @@ async def cb_frequency_chosen(callback: CallbackQuery, state: FSMContext) -> Non
         post_frequency=freq,
         publish_times=publish_times,
     )
+    await state.clear()
 
     from datetime import datetime, timedelta
     trial_end = datetime.utcnow() + timedelta(days=config.TRIAL_DAYS)
@@ -196,7 +196,7 @@ async def _bootstrap_user(bot: Bot, user_id: int, niche: str) -> None:
         await bot.send_message(
             user_id,
             f"✅ Апталық жоспар дайын! {len(plan)} тақырып жасалды.\n"
-            f"Посттар генерацияланудад, жақында аласың...",
+            f"Посттар генерацияланады, жақында аласың...",
         )
 
         # Generate posts for all plan items
@@ -206,7 +206,7 @@ async def _bootstrap_user(bot: Bot, user_id: int, niche: str) -> None:
         for item in plan:
             try:
                 post_data = await generate_post_and_save(item, user_id)
-                await bot.send_message(user_id, "⏳ Пост жасалды, сурет генерацияланудад...")
+                await bot.send_message(user_id, "⏳ Пост жасалды, сурет генерацияланады...")
                 await generate_image(post_data["image_prompt"], post_data["id"])
                 # Send for moderation
                 from handlers.moderation import send_post_preview_to_user
