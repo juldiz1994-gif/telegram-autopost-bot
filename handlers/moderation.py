@@ -66,7 +66,7 @@ async def send_post_preview_to_user(bot: Bot, post_id: int, user_id: int) -> Non
                 reply_markup=keyboard,
             )
             if len(text + meta) > CAPTION_LIMIT:
-                await bot.send_message(user_id, text, reply_markup=keyboard)
+                await bot.send_message(user_id, text)
         else:
             await bot.send_message(
                 user_id,
@@ -110,8 +110,7 @@ async def cmd_my_stats(message: Message) -> None:
     if not user:
         await message.answer("❌ Тіркелмегенсің. /start жаз.")
         return
-    from database import db as _db
-    async with _db._pool.acquire() as conn:
+    async with db._pool.acquire() as conn:
         rows = await conn.fetch(
             "SELECT status, COUNT(*) AS cnt FROM posts WHERE user_id=$1 GROUP BY status",
             user_id
@@ -232,8 +231,7 @@ async def process_edit(message: Message, state: FSMContext, bot: Bot) -> None:
         f'JSON: {{"text": "...", "image_prompt": "..."}}'
     )
     try:
-        import asyncio as _asyncio
-        response = await _asyncio.to_thread(
+        response = await asyncio.to_thread(
             client.models.generate_content,
             model=config.GEMINI_TEXT_MODEL,
             contents=edit_prompt,
