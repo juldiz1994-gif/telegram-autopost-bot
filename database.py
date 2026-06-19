@@ -361,7 +361,8 @@ class Database:
         """Rejects payment and returns user_id."""
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(
-                "SELECT user_id FROM payments WHERE id = $1", payment_id
+                "SELECT user_id FROM payments WHERE id = $1 AND status = 'pending'",
+                payment_id,
             )
             if not row:
                 return None
