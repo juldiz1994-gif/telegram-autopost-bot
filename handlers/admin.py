@@ -93,7 +93,6 @@ async def cb_admin_stats(callback: CallbackQuery) -> None:
 @admin_router.callback_query(F.data == "admin:users")
 async def cb_admin_users(callback: CallbackQuery) -> None:
     await callback.answer()
-    users = await db.get_active_users()
 
     # Also get expired/blocked
     async with db._pool.acquire() as conn:
