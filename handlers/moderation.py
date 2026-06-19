@@ -79,6 +79,39 @@ async def send_post_preview_to_user(bot: Bot, post_id: int, user_id: int) -> Non
         logger.error("Post %d preview send failed to user %d: %s", post_id, user_id, e)
 
 
+@moderation_router.message(Command("approve_all"))
+async def cmd_approve_all(message: Message, bot: Bot) -> None:
+    user_id = message.from_user.id
+    user = await db.get_user(user_id)
+    if not user:
+        await message.answer("❌ Тіркелмегенсің. /start жаз.")
+        return
+    pending = await db.get_posts_by_status_for_user(user_id, "pending_review")
+    draft = await db.get_posts_by_status_for_user(user_id, "draft")
+    all_posts = list(pending) + list(draft)
+    if not all_posts:
+        await message.answer("✅ Бекітуді қажет ететін посттар жоқ.")
+        return
+    await message.answer(f"⏳ {len(all_posts)} пост өңделуде, сурет жасалады...")
+
+    async def _process():
+        done = 0
+        for post in all_posts:
+            try:
+                from image_generator import generate_image
+                if not post.get("image_path"):
+                    await generate_image(post["image_prompt"], post["id"])
+                await db.update_post_status(post["id"], "approved")
+                done += 1
+            except Exception as e:
+                logger.error("approve_all post %d error: %s", post["id"], e)
+                await db.update_post_status(post["id"], "approved")
+                done += 1
+        await bot.send_message(user_id, f"✅ {done} пост бекітілді! Кесте бойынша жарияланады.")
+
+    asyncio.create_task(_process())
+
+
 @moderation_router.message(Command("queue"))
 async def cmd_queue(message: Message) -> None:
     user_id = message.from_user.id
