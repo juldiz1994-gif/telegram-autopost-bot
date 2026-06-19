@@ -10,6 +10,7 @@ from config import config
 from database import db
 from moderator_bot import setup_dispatcher
 from scheduler import ContentScheduler
+from services.subscription import start_subscription_service
 
 logging.basicConfig(
     level=logging.INFO,
@@ -29,7 +30,7 @@ async def main() -> None:
     sched = ContentScheduler(bot)
     scheduler_module.scheduler = sched
     await sched.start()
-    from services.subscription import start_subscription_service
+
     start_subscription_service(bot, sched._scheduler)
 
     logger.info("Бот іске қосылды")
@@ -49,7 +50,10 @@ async def main() -> None:
             pass
 
     try:
-        await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
+        await dp.start_polling(
+            bot,
+            allowed_updates=dp.resolve_used_update_types() + ["my_chat_member"],
+        )
     finally:
         sched.stop()
         await db.close()
