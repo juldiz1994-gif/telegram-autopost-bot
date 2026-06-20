@@ -26,6 +26,8 @@ class OnboardingState(StatesGroup):
     waiting_channel = State()
     waiting_channel_confirm = State()
     waiting_frequency = State()
+    waiting_cta_type = State()
+    waiting_cta_text = State()
 
 
 def _frequency_keyboard() -> InlineKeyboardMarkup:
@@ -33,6 +35,14 @@ def _frequency_keyboard() -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="1 рет", callback_data="freq:1"),
         InlineKeyboardButton(text="2 рет", callback_data="freq:2"),
     ]])
+
+
+def _cta_type_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📚 Курсыма шақыру", callback_data="cta_type:course")],
+        [InlineKeyboardButton(text="📢 Каналыма шақыру", callback_data="cta_type:channel")],
+        [InlineKeyboardButton(text="🚫 Керек емес", callback_data="cta_type:none")],
+    ])
 
 
 def _confirm_channel_keyboard(channel_id: int) -> InlineKeyboardMarkup:
@@ -62,7 +72,10 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
             f"📋 Ниша: {user['niche']}\n"
             f"{status_line}\n\n"
             f"📬 /queue — посттар кезегі\n"
-            f"📊 /my_stats — статистика"
+            f"📊 /my_stats — статистика",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                InlineKeyboardButton(text="💬 Техподдержка", url="https://www.instagram.com/ai_aisha_kz?igsh=NHV4ZW85cGxtNHJr"),
+            ]]),
         )
         return
 
@@ -159,11 +172,76 @@ async def cb_channel_retry(callback: CallbackQuery, state: FSMContext) -> None:
 async def cb_frequency_chosen(callback: CallbackQuery, state: FSMContext) -> None:
     await callback.answer()
     freq = int(callback.data.split(":")[1])
-    data = await state.get_data()
-
     publish_times = "10:00,18:00" if freq == 2 else "10:00"
+    await state.update_data(freq=freq, publish_times=publish_times)
+    await state.set_state(OnboardingState.waiting_cta_type)
+    await callback.message.edit_reply_markup(reply_markup=None)
+    await callback.message.answer(
+        "📌 <b>Пост соңына не қосамыз?</b>\n\n"
+        "Оқырмандарды ненге шақырайық?",
+        parse_mode="HTML",
+        reply_markup=_cta_type_keyboard(),
+    )
 
-    user = callback.from_user
+
+@onboarding_router.callback_query(
+    OnboardingState.waiting_cta_type,
+    F.data.startswith("cta_type:")
+)
+async def cb_cta_type(callback: CallbackQuery, state: FSMContext) -> None:
+    await callback.answer()
+    cta_type = callback.data.split(":")[1]
+    await callback.message.edit_reply_markup(reply_markup=None)
+
+    if cta_type == "none":
+        await state.update_data(cta="")
+        await _finish_registration(callback, state)
+    elif cta_type == "course":
+        await state.update_data(cta_type="course")
+        await state.set_state(OnboardingState.waiting_cta_text)
+        await callback.message.answer(
+            "📚 Курс сілтемесін немесе юзернеймін жаз:\n"
+            "Мысалы: @mycourse немесе t.me/mycourse"
+        )
+    elif cta_type == "channel":
+        await state.update_data(cta_type="channel")
+        await state.set_state(OnboardingState.waiting_cta_text)
+        await callback.message.answer(
+            "📢 Канал юзернеймін жаз:\n"
+            "Мысалы: @mychannel"
+        )
+
+
+@onboarding_router.message(OnboardingState.waiting_cta_text)
+async def process_cta_text(message: Message, state: FSMContext) -> None:
+    text = (message.text or "").strip()
+    data = await state.get_data()
+    cta_type = data.get("cta_type", "course")
+
+    if cta_type == "course":
+        cta = f"📚 Толық курс туралы: {text}"
+    else:
+        cta = f"📢 Каналға өт: {text}"
+
+    await state.update_data(cta=cta)
+    await _finish_registration(message, state)
+
+
+async def _finish_registration(event, state: FSMContext) -> None:
+    data = await state.get_data()
+    freq = data["freq"]
+    publish_times = data["publish_times"]
+    cta = data.get("cta", "")
+
+    if hasattr(event, "from_user"):
+        user = event.from_user
+        answer = event.answer if hasattr(event, "answer") else event.message.answer
+        bot = event.bot if hasattr(event, "bot") else event.message.bot
+    else:
+        user = event.from_user
+        answer = event.message.answer
+        bot = event.message.bot
+
     await db.create_user(
         user_id=user.id,
         username=user.username,
@@ -173,14 +251,14 @@ async def cb_frequency_chosen(callback: CallbackQuery, state: FSMContext) -> Non
         channel_title=data["channel_title"],
         post_frequency=freq,
         publish_times=publish_times,
+        cta=cta,
     )
     await state.clear()
 
     from datetime import datetime, timedelta
     trial_end = datetime.utcnow() + timedelta(days=config.TRIAL_DAYS)
 
-    await callback.message.edit_reply_markup(reply_markup=None)
-    await callback.message.answer(
+    await answer(
         f"🎉 <b>Тіркеу аяқталды!</b>\n\n"
         f"📋 Ниша: {data['niche']}\n"
         f"📢 Канал: {data['channel_title']}\n"
@@ -190,8 +268,7 @@ async def cb_frequency_chosen(callback: CallbackQuery, state: FSMContext) -> Non
         parse_mode="HTML",
     )
 
-    # Trigger content generation in background
-    asyncio.create_task(_bootstrap_user(callback.message.bot, user.id, data["niche"]))
+    asyncio.create_task(_bootstrap_user(bot, user.id, data["niche"]))
 
 
 async def _generate_and_moderate(bot: Bot, post_data: dict, user_id: int) -> None:

@@ -107,6 +107,16 @@ class Database:
                     END IF;
                 END $$;
             """)
+            await conn.execute("""
+                DO $$ BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name='users' AND column_name='cta'
+                    ) THEN
+                        ALTER TABLE users ADD COLUMN cta TEXT DEFAULT '';
+                    END IF;
+                END $$;
+            """)
         logger.info("Database tables initialized")
 
     async def save_plan(self, niche: str, items: list[dict],
@@ -221,7 +231,7 @@ class Database:
     async def create_user(
         self, user_id: int, username: Optional[str], full_name: Optional[str],
         niche: str, channel_id: int, channel_title: Optional[str],
-        post_frequency: int, publish_times: str,
+        post_frequency: int, publish_times: str, cta: str = "",
     ) -> None:
         from datetime import datetime, timedelta
         trial_ends = datetime.utcnow() + timedelta(days=config.TRIAL_DAYS)
@@ -229,12 +239,12 @@ class Database:
             await conn.execute(
                 """
                 INSERT INTO users (id, username, full_name, niche, channel_id, channel_title,
-                                   post_frequency, publish_times, trial_ends_at)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                                   post_frequency, publish_times, trial_ends_at, cta)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
                 ON CONFLICT (id) DO NOTHING
                 """,
                 user_id, username, full_name, niche, channel_id, channel_title,
-                post_frequency, publish_times, trial_ends,
+                post_frequency, publish_times, trial_ends, cta,
             )
 
     async def get_user(self, user_id: int) -> Optional[asyncpg.Record]:

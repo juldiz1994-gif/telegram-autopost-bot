@@ -24,12 +24,12 @@ def _retry_delay(attempt: int, error: Exception) -> float:
     return float(2 ** attempt)
 
 
-async def generate_post(topic: str, format_type: str, niche: str) -> dict[str, Any]:
+async def generate_post(topic: str, format_type: str, niche: str, cta: str = "") -> dict[str, Any]:
     if format_type not in FORMAT_PROMPTS:
         logger.warning("Белгісіз формат '%s', 'tips' қолданылады", format_type)
         format_type = "tips"
 
-    prompt = FORMAT_PROMPTS[format_type](topic, niche)
+    prompt = FORMAT_PROMPTS[format_type](topic, niche, cta)
 
     for attempt in range(1, 6):
         try:
@@ -71,10 +71,16 @@ async def generate_post(topic: str, format_type: str, niche: str) -> dict[str, A
 
 async def generate_post_and_save(plan_item: dict,
                                   user_id: Optional[int] = None) -> dict[str, Any]:
+    cta = ""
+    if user_id:
+        user = await db.get_user(user_id)
+        if user:
+            cta = user.get("cta") or ""
     result = await generate_post(
         topic=plan_item["topic"],
         format_type=plan_item["format"],
         niche=plan_item.get("niche") or config.CONTENT_NICHE,
+        cta=cta,
     )
     post_id = await db.save_post(
         plan_id=plan_item["id"],
