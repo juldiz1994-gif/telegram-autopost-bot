@@ -31,7 +31,7 @@ async def cmd_pay(message: Message, state: FSMContext) -> None:
     await state.set_state(PaymentState.waiting_for_check)
     await message.answer(
         f"💳 <b>Жазылым төлемі</b>\n\n"
-        f"Сома: <b>990 тг/ай</b>\n"
+        f"Сома: <b>1990 тг/ай</b>\n"
         f"📱 Kaspi: <code>{config.KASPI_PHONE}</code>\n"
         f"👤 Аты: <b>{config.KASPI_NAME}</b>\n\n"
         f"Аударғаннан кейін осы чатқа <b>чек суретін жібер</b> — "

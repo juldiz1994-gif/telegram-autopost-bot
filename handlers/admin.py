@@ -125,7 +125,7 @@ async def cb_admin_stats(callback: CallbackQuery) -> None:
     posts = stats.get("posts", {})
     total_clients = sum(users.values())
     active_clients = users.get("active", 0)
-    monthly_revenue = active_clients * 990
+    monthly_revenue = active_clients * 1990
 
     await callback.message.answer(
         f"📊 <b>Статистика</b>\n\n"

@@ -51,7 +51,7 @@ class Database:
                 CREATE TABLE IF NOT EXISTS payments (
                     id SERIAL PRIMARY KEY,
                     user_id BIGINT REFERENCES users(id),
-                    amount INTEGER DEFAULT 990,
+                    amount INTEGER DEFAULT 1990,
                     status TEXT NOT NULL DEFAULT 'pending',
                     check_file_id TEXT,
                     created_at TIMESTAMP DEFAULT NOW(),
