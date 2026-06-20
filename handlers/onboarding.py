@@ -217,6 +217,9 @@ async def _bootstrap_user(bot: Bot, user_id: int, niche: str) -> None:
             user_id,
             f"✅ Апталық жоспар дайын! {len(plan)} тақырып жасалды.\n"
             f"⏳ Посттар мен суреттер жасалуда, кесте бойынша каналда жарияланады...",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                InlineKeyboardButton(text="📬 Посттарды көру", callback_data="show_queue"),
+            ]]),
         )
 
         for item in plan:
@@ -230,3 +233,24 @@ async def _bootstrap_user(bot: Bot, user_id: int, niche: str) -> None:
     except Exception as e:
         logger.error("Bootstrap error user_id=%d: %s", user_id, e)
         await bot.send_message(user_id, f"❌ Контент жасауда қате: {e}")
+
+
+@onboarding_router.callback_query(F.data == "show_queue")
+async def cb_show_queue(callback: CallbackQuery) -> None:
+    from database import db
+    user_id = callback.from_user.id
+    approved = await db.get_posts_by_status_for_user(user_id, "approved")
+    pending = await db.get_posts_by_status_for_user(user_id, "pending_review")
+    lines = ["📬 <b>Посттар кезегі</b>\n"]
+    if approved:
+        lines.append(f"✅ <b>Бекітілгендер ({len(approved)}):</b>")
+        for p in approved:
+            lines.append(f"  [{p.get('format', '?')}] {str(p.get('topic', '?'))[:50]}")
+    if pending:
+        lines.append(f"\n⏳ <b>Қарауда ({len(pending)}):</b>")
+        for p in pending:
+            lines.append(f"  [{p.get('format', '?')}] {str(p.get('topic', '?'))[:50]}")
+    if not approved and not pending:
+        lines.append("Кезек бос.")
+    await callback.message.answer("\n".join(lines), parse_mode="HTML")
+    await callback.answer()
