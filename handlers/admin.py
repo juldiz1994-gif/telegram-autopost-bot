@@ -42,6 +42,35 @@ def _admin_main_keyboard() -> InlineKeyboardMarkup:
     ])
 
 
+@admin_router.message(Command("expire_user"))
+async def cmd_expire_user(message: Message, bot: Bot) -> None:
+    parts = (message.text or "").split()
+    if len(parts) < 2:
+        await message.answer("Қолдану: /expire_user <user_id>")
+        return
+    try:
+        target_id = int(parts[1])
+    except ValueError:
+        await message.answer("❌ user_id сан болуы керек")
+        return
+    user = await db.get_user(target_id)
+    if not user:
+        await message.answer("❌ Пайдаланушы табылмады.")
+        return
+    await db.update_user_status(target_id, "expired")
+    await deactivate_user_schedule(target_id)
+    await message.answer(f"✅ user_id={target_id} мерзімі аяқталды (expired).")
+    try:
+        await bot.send_message(
+            target_id,
+            "❌ <b>Тегін мерзімің аяқталды.</b>\n\n"
+            "Посттар тоқтатылды. Жалғастыру үшін /pay жаз.",
+            parse_mode="HTML",
+        )
+    except Exception as e:
+        logger.error("expire_user notify failed: %s", e)
+
+
 @admin_router.message(Command("reset_user"))
 async def cmd_reset_user(message: Message) -> None:
     parts = (message.text or "").split()
