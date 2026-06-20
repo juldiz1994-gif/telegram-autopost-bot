@@ -55,6 +55,14 @@ async def send_post_preview_to_user(bot: Bot, post_id: int, user_id: int) -> Non
     image_path: str | None = post["image_path"]
 
     try:
+        if image_path and not os.path.exists(image_path):
+            image_prompt = post.get("image_prompt") or ""
+            if image_prompt:
+                from image_generator import generate_image
+                image_path = await generate_image(image_prompt, post_id)
+            else:
+                image_path = None
+
         if image_path and os.path.exists(image_path):
             photo = FSInputFile(image_path)
             caption = (text + meta) if len(text + meta) <= CAPTION_LIMIT else meta
