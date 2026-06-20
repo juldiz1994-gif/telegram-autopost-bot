@@ -301,7 +301,7 @@ async def cb_pay_reject(callback: CallbackQuery, bot: Bot) -> None:
         await bot.send_message(
             user_id,
             "❌ Чекті растай алмадық.\n\n"
-            f"Kaspi нөміріне дұрыс аудардың ба? ({config.KASPI_PHONE})\n"
+            f"Kaspi нөміріне дұрыс аудардың ба? {config.KASPI_PHONE} ({config.KASPI_NAME})\n"
             "Қайтадан чек жібер немесе @support-қа хабарлас.",
         )
     except Exception:

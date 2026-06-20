@@ -21,7 +21,8 @@ async def _send_trial_reminders(bot: Bot) -> None:
                 user["id"],
                 f"⏰ <b>Тегін мерзімің {ends}-де аяқталады!</b>\n\n"
                 f"Жалғастыру үшін 990 тг аудар:\n"
-                f"📱 Kaspi: <code>{config.KASPI_PHONE}</code>\n\n"
+                f"📱 Kaspi: <code>{config.KASPI_PHONE}</code>\n"
+                f"👤 Аты: <b>{config.KASPI_NAME}</b>\n\n"
                 f"Аударғаннан кейін чек жіберсең — 30 күн қосылады. /pay",
                 parse_mode="HTML",
             )
@@ -39,7 +40,8 @@ async def _send_subscription_reminders(bot: Bot) -> None:
                 user["id"],
                 f"⏰ <b>Жазылымың {ends}-де аяқталады!</b>\n\n"
                 f"Жалғастыру үшін 990 тг аудар:\n"
-                f"📱 Kaspi: <code>{config.KASPI_PHONE}</code>\n\n"
+                f"📱 Kaspi: <code>{config.KASPI_PHONE}</code>\n"
+                f"👤 Аты: <b>{config.KASPI_NAME}</b>\n\n"
                 f"Чекті жіберсең — тоқтаусыз жалғасады. /pay",
                 parse_mode="HTML",
             )
