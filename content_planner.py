@@ -13,7 +13,7 @@ from prompts import PLAN_PROMPT
 
 logger = logging.getLogger(__name__)
 
-_client = genai.Client(api_key=config.GEMINI_API_KEY, http_options={"api_version": "v1"})
+_client = genai.Client(api_key=config.GEMINI_API_KEY)
 
 
 def _next_weekday(target_dow: int) -> date:

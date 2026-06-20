@@ -254,7 +254,7 @@ async def process_edit(message: Message, state: FSMContext, bot: Bot) -> None:
 
     await message.answer("⏳ AI мәтінді өзгертуде...")
     from prompts import SYSTEM_PROMPT
-    client = genai.Client(api_key=config.GEMINI_API_KEY, http_options={"api_version": "v1"})
+    client = genai.Client(api_key=config.GEMINI_API_KEY)
     edit_prompt = (
         f"{SYSTEM_PROMPT}\n\n"
         f"Ағымдағы пост:\n{post['text']}\n\n"

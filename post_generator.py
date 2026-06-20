@@ -12,7 +12,7 @@ from prompts import FORMAT_PROMPTS
 
 logger = logging.getLogger(__name__)
 
-_client = genai.Client(api_key=config.GEMINI_API_KEY, http_options={"api_version": "v1"})
+_client = genai.Client(api_key=config.GEMINI_API_KEY)
 
 
 def _retry_delay(attempt: int, error: Exception) -> float:
