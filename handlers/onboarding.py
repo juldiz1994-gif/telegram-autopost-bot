@@ -87,6 +87,9 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
         "📝 <b>Каналыңның тақырыбы не?</b>\n"
         "Мысалы: Психология, Фитнес, Бизнес, Тамақ рецепттері...",
         parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="💬 Техподдержка", url="https://www.instagram.com/ai_aisha_kz?igsh=NHV4ZW85cGxtNHJr"),
+        ]]),
     )
 
 
