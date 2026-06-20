@@ -112,8 +112,16 @@ async def cmd_approve_all(message: Message, bot: Bot) -> None:
     asyncio.create_task(_process())
 
 
+def _queue_keyboard(posts: list) -> InlineKeyboardMarkup:
+    rows = []
+    for p in posts:
+        label = f"{str(p.get('topic', '?'))[:40]}"
+        rows.append([InlineKeyboardButton(text=f"👁 {label}", callback_data=f"view_post:{p['id']}")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
 @moderation_router.message(Command("queue"))
-async def cmd_queue(message: Message) -> None:
+async def cmd_queue(message: Message, bot: Bot) -> None:
     user_id = message.from_user.id
     user = await db.get_user(user_id)
     if not user:
@@ -121,18 +129,21 @@ async def cmd_queue(message: Message) -> None:
         return
     approved = await db.get_posts_by_status_for_user(user_id, "approved")
     pending = await db.get_posts_by_status_for_user(user_id, "pending_review")
-    lines = ["📬 <b>Посттар кезегі</b>\n"]
-    if approved:
-        lines.append(f"✅ <b>Бекітілгендер ({len(approved)}):</b>")
-        for p in approved:
-            lines.append(f"  [{p.get('format', '?')}] {str(p.get('topic', '?'))[:50]}")
+    all_posts = list(pending) + list(approved)
+    if not all_posts:
+        await message.answer("📬 Кезек бос.")
+        return
+    lines = ["📬 <b>Посттар кезегі</b> — оқу үшін басыңыз:\n"]
     if pending:
-        lines.append(f"\n⏳ <b>Қарауда ({len(pending)}):</b>")
-        for p in pending:
-            lines.append(f"  [{p.get('format', '?')}] {str(p.get('topic', '?'))[:50]}")
-    if not approved and not pending:
-        lines.append("Кезек бос.")
-    await message.answer("\n".join(lines), parse_mode="HTML")
+        lines.append(f"⏳ Қарауда: {len(pending)}    ✅ Бекітілген: {len(approved)}")
+    await message.answer("\n".join(lines), parse_mode="HTML", reply_markup=_queue_keyboard(all_posts))
+
+
+@moderation_router.callback_query(F.data.startswith("view_post:"))
+async def cb_view_post(callback: CallbackQuery, bot: Bot) -> None:
+    post_id = int(callback.data.split(":")[1])
+    await send_post_preview_to_user(bot, post_id, callback.from_user.id)
+    await callback.answer()
 
 
 @moderation_router.message(Command("my_stats"))

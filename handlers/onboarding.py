@@ -238,19 +238,17 @@ async def _bootstrap_user(bot: Bot, user_id: int, niche: str) -> None:
 @onboarding_router.callback_query(F.data == "show_queue")
 async def cb_show_queue(callback: CallbackQuery) -> None:
     from database import db
+    from handlers.moderation import _queue_keyboard
     user_id = callback.from_user.id
     approved = await db.get_posts_by_status_for_user(user_id, "approved")
     pending = await db.get_posts_by_status_for_user(user_id, "pending_review")
-    lines = ["📬 <b>Посттар кезегі</b>\n"]
-    if approved:
-        lines.append(f"✅ <b>Бекітілгендер ({len(approved)}):</b>")
-        for p in approved:
-            lines.append(f"  [{p.get('format', '?')}] {str(p.get('topic', '?'))[:50]}")
-    if pending:
-        lines.append(f"\n⏳ <b>Қарауда ({len(pending)}):</b>")
-        for p in pending:
-            lines.append(f"  [{p.get('format', '?')}] {str(p.get('topic', '?'))[:50]}")
-    if not approved and not pending:
-        lines.append("Кезек бос.")
-    await callback.message.answer("\n".join(lines), parse_mode="HTML")
+    all_posts = list(pending) + list(approved)
+    if not all_posts:
+        await callback.message.answer("📬 Кезек бос.")
+        await callback.answer()
+        return
+    lines = ["📬 <b>Посттар кезегі</b> — оқу үшін басыңыз:\n"]
+    if pending or approved:
+        lines.append(f"⏳ Қарауда: {len(pending)}    ✅ Бекітілген: {len(approved)}")
+    await callback.message.answer("\n".join(lines), parse_mode="HTML", reply_markup=_queue_keyboard(all_posts))
     await callback.answer()
