@@ -199,33 +199,21 @@ async def cb_cta_type(callback: CallbackQuery, state: FSMContext) -> None:
     if cta_type == "none":
         await state.update_data(cta="")
         await _finish_registration(callback, state)
-    elif cta_type == "course":
-        await state.update_data(cta_type="course")
-        await state.set_state(OnboardingState.waiting_cta_text)
-        await callback.message.answer(
-            "📚 Курс сілтемесін немесе юзернеймін жаз:\n"
-            "Мысалы: @mycourse немесе t.me/mycourse"
-        )
     elif cta_type == "channel":
-        await state.update_data(cta_type="channel")
+        await state.update_data(cta="📢 Осы каналды достарыңмен бөліс — бірге өсеміз!")
+        await _finish_registration(callback, state)
+    elif cta_type == "course":
         await state.set_state(OnboardingState.waiting_cta_text)
         await callback.message.answer(
-            "📢 Канал юзернеймін жаз:\n"
-            "Мысалы: @mychannel"
+            "📚 Курсыңыз туралы қысқаша жазыңыз.\n\n"
+            "Мысалы: «Менің 30 күндік стресстен арылу курсым бар, "
+            "нәтижені кепілдік беремін. Жазылу үшін @username-ге хабарлас»"
         )
 
 
 @onboarding_router.message(OnboardingState.waiting_cta_text)
 async def process_cta_text(message: Message, state: FSMContext) -> None:
-    text = (message.text or "").strip()
-    data = await state.get_data()
-    cta_type = data.get("cta_type", "course")
-
-    if cta_type == "course":
-        cta = f"📚 Толық курс туралы: {text}"
-    else:
-        cta = f"📢 Каналға өт: {text}"
-
+    cta = (message.text or "").strip()
     await state.update_data(cta=cta)
     await _finish_registration(message, state)
 
