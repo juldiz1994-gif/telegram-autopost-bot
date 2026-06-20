@@ -33,10 +33,9 @@ class EditState(StatesGroup):
 
 def _moderation_keyboard(post_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text="✅ Бекіту", callback_data=f"u_approve:{post_id}"),
-        InlineKeyboardButton(text="🔄 Қайта жаз", callback_data=f"u_redo:{post_id}"),
         InlineKeyboardButton(text="✏️ Өңдеу", callback_data=f"u_edit:{post_id}"),
-        InlineKeyboardButton(text="❌ Өткізіп жібер", callback_data=f"u_reject:{post_id}"),
+        InlineKeyboardButton(text="🔄 Қайта жаз", callback_data=f"u_redo:{post_id}"),
+        InlineKeyboardButton(text="🗑 Жою", callback_data=f"u_delete:{post_id}"),
     ]])
 
 
@@ -82,7 +81,6 @@ async def send_post_preview_to_user(bot: Bot, post_id: int, user_id: int) -> Non
                 parse_mode="HTML",
                 reply_markup=keyboard,
             )
-        await db.update_post_status(post_id, "pending_review")
     except TelegramBadRequest as e:
         logger.error("Post %d preview send failed to user %d: %s", post_id, user_id, e)
 
@@ -135,16 +133,15 @@ async def cmd_queue(message: Message, bot: Bot) -> None:
     if not user:
         await message.answer("❌ Тіркелмегенсің. /start жаз.")
         return
-    approved = await db.get_posts_by_status_for_user(user_id, "approved")
-    pending = await db.get_posts_by_status_for_user(user_id, "pending_review")
-    all_posts = list(pending) + list(approved)
-    if not all_posts:
-        await message.answer("📬 Кезек бос.")
+    posts = await db.get_posts_by_status_for_user(user_id, "approved")
+    if not posts:
+        await message.answer("📬 Кезек бос. Жаңа посттар жасалуда...")
         return
-    lines = ["📬 <b>Посттар кезегі</b> — оқу үшін басыңыз:\n"]
-    if pending:
-        lines.append(f"⏳ Қарауда: {len(pending)}    ✅ Бекітілген: {len(approved)}")
-    await message.answer("\n".join(lines), parse_mode="HTML", reply_markup=_queue_keyboard(all_posts))
+    await message.answer(
+        f"📬 <b>Посттар кезегі</b> — {len(posts)} пост жарияланады.\nОқу үшін басыңыз:",
+        parse_mode="HTML",
+        reply_markup=_queue_keyboard(posts),
+    )
 
 
 @moderation_router.callback_query(F.data.startswith("view_post:"))
@@ -178,25 +175,8 @@ async def cmd_my_stats(message: Message) -> None:
     await message.answer("\n".join(lines), parse_mode="HTML")
 
 
-@moderation_router.callback_query(F.data.startswith("u_approve:"))
-async def cb_approve(callback: CallbackQuery) -> None:
-    post_id = int(callback.data.split(":")[1])
-    post = await db.get_post_by_id(post_id)
-    if not post or post.get("user_id") != callback.from_user.id:
-        await callback.answer("❌ Қатынас жоқ", show_alert=True)
-        return
-    await db.update_post_status(post_id, "approved")
-    scheduled = f"{post.get('scheduled_date', '?')} {post.get('scheduled_time', '?')}"
-    try:
-        await callback.message.edit_reply_markup(reply_markup=None)
-    except TelegramBadRequest:
-        pass
-    await callback.answer("✅ Бекітілді!")
-    await callback.message.answer(f"✅ Пост бекітілді. Жоспарланған: {scheduled}")
-
-
-@moderation_router.callback_query(F.data.startswith("u_reject:"))
-async def cb_reject(callback: CallbackQuery) -> None:
+@moderation_router.callback_query(F.data.startswith("u_delete:"))
+async def cb_delete(callback: CallbackQuery) -> None:
     post_id = int(callback.data.split(":")[1])
     post = await db.get_post_by_id(post_id)
     if not post or post.get("user_id") != callback.from_user.id:
@@ -207,8 +187,8 @@ async def cb_reject(callback: CallbackQuery) -> None:
         await callback.message.edit_reply_markup(reply_markup=None)
     except TelegramBadRequest:
         pass
-    await callback.answer("❌ Өткізілді")
-    await callback.message.answer("❌ Пост өткізілді, жарияланбайды.")
+    await callback.answer("🗑 Жойылды")
+    await callback.message.answer("🗑 Пост жойылды, жарияланбайды.")
 
 
 @moderation_router.callback_query(F.data.startswith("u_redo:"))

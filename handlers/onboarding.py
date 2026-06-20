@@ -301,7 +301,8 @@ async def _bootstrap_user(bot: Bot, user_id: int, niche: str) -> None:
         await bot.send_message(
             user_id,
             f"✅ Апталық жоспар дайын! {len(plan)} тақырып жасалды.\n"
-            f"⏳ Посттар мен суреттер жасалуда, кесте бойынша каналда жарияланады...",
+            f"⏳ Посттар мен суреттер жасалуда... Дайын болғанда кесте бойынша каналда автоматты жарияланады.\n\n"
+            f"📬 Посттарды алдын ала көріп, қаласаң өңдей немесе жоя аласың.",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
                 InlineKeyboardButton(text="📬 Посттарды көру", callback_data="show_queue"),
             ]]),
@@ -325,15 +326,14 @@ async def cb_show_queue(callback: CallbackQuery) -> None:
     from database import db
     from handlers.moderation import _queue_keyboard
     user_id = callback.from_user.id
-    approved = await db.get_posts_by_status_for_user(user_id, "approved")
-    pending = await db.get_posts_by_status_for_user(user_id, "pending_review")
-    all_posts = list(pending) + list(approved)
-    if not all_posts:
-        await callback.message.answer("📬 Кезек бос.")
+    posts = await db.get_posts_by_status_for_user(user_id, "approved")
+    if not posts:
+        await callback.message.answer("📬 Посттар әлі жасалуда, бірнеше минуттан кейін қайта бас.")
         await callback.answer()
         return
-    lines = ["📬 <b>Посттар кезегі</b> — оқу үшін басыңыз:\n"]
-    if pending or approved:
-        lines.append(f"⏳ Қарауда: {len(pending)}    ✅ Бекітілген: {len(approved)}")
-    await callback.message.answer("\n".join(lines), parse_mode="HTML", reply_markup=_queue_keyboard(all_posts))
+    await callback.message.answer(
+        f"📬 <b>Посттар кезегі</b> — {len(posts)} пост жарияланады.\nОқу үшін басыңыз:",
+        parse_mode="HTML",
+        reply_markup=_queue_keyboard(posts),
+    )
     await callback.answer()

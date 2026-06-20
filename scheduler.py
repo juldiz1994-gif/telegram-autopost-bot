@@ -24,12 +24,18 @@ class ContentScheduler:
         users = await db.get_active_users()
         for user in users:
             self.add_user_jobs(dict(user))
-        # Auto-process posts that have no image (e.g. after restart)
         self._scheduler.add_job(
             self._process_pending_images,
             "interval",
             minutes=5,
             id="process_pending_images",
+            replace_existing=True,
+        )
+        # Daily at 03:00: refill any user with fewer than 3 approved posts
+        self._scheduler.add_job(
+            self._check_and_refill_plans,
+            CronTrigger(hour=3, minute=0, timezone=pytz.timezone(config.TIMEZONE)),
+            id="check_and_refill_plans",
             replace_existing=True,
         )
         logger.info("Scheduler запущен, %d пайдаланушы жүктелді", len(users))
@@ -73,13 +79,8 @@ class ContentScheduler:
             else:
                 logger.error("Scheduler: пост id=%d жариялау сәтсіз", post["id"])
         else:
-            # Check if posts are already in the moderation pipeline
-            pending = await db.get_next_post_for_user(user_id, "pending_review")
             draft = await db.get_next_post_for_user(user_id, "draft")
-            if pending or draft:
-                logger.info("Scheduler: user_id=%d постар модерацияда күтуде", user_id)
-            else:
-                # No content at all — generate a new weekly plan
+            if not draft:
                 logger.info("Scheduler: user_id=%d контент таусылды, жаңа жоспар жасалуда", user_id)
                 asyncio.create_task(self._regenerate_plan(user_id, user["niche"]))
 
@@ -89,7 +90,10 @@ class ContentScheduler:
             from post_generator import generate_post_and_save
             from image_generator import generate_image
 
-            await self._bot.send_message(user_id, "📅 Жаңа апталық жоспар жасалуда...")
+            await self._bot.send_message(
+                user_id,
+                "📅 Жаңа апталық жоспар жасалуда... Посттар дайын болғанда кесте бойынша автоматты жарияланады.",
+            )
             plan = await generate_weekly_plan(niche, user_id)
 
             for item in plan:
@@ -109,7 +113,7 @@ class ContentScheduler:
             async with db._pool.acquire() as conn:
                 posts = await conn.fetch(
                     """SELECT id, user_id, image_prompt FROM posts
-                       WHERE status IN ('pending_review', 'draft')
+                       WHERE status = 'draft'
                        AND (image_path IS NULL OR image_path = '')
                        LIMIT 10"""
                 )
@@ -127,6 +131,26 @@ class ContentScheduler:
                     await db.update_post_status(post["id"], "approved")
         except Exception as e:
             logger.error("_process_pending_images error: %s", e)
+
+    async def _check_and_refill_plans(self) -> None:
+        """Daily job: users with fewer than 3 approved posts get a new weekly plan."""
+        try:
+            users = await db.get_active_users()
+            for user in users:
+                user_id = user["id"]
+                try:
+                    async with db._pool.acquire() as conn:
+                        count = await conn.fetchval(
+                            "SELECT COUNT(*) FROM posts WHERE user_id=$1 AND status='approved'",
+                            user_id,
+                        )
+                    if count < 3:
+                        logger.info("Refill: user_id=%d has %d approved posts, regenerating", user_id, count)
+                        asyncio.create_task(self._regenerate_plan(user_id, user["niche"]))
+                except Exception as e:
+                    logger.error("Refill check error user_id=%d: %s", user_id, e)
+        except Exception as e:
+            logger.error("_check_and_refill_plans error: %s", e)
 
     def stop(self) -> None:
         self._scheduler.shutdown(wait=False)
