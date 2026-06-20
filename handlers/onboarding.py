@@ -207,8 +207,25 @@ async def cb_cta_type(callback: CallbackQuery, state: FSMContext) -> None:
         await callback.message.answer(
             "📚 Курсыңыз туралы қысқаша жазыңыз.\n\n"
             "Мысалы: «Менің 30 күндік стресстен арылу курсым бар, "
-            "нәтижені кепілдік беремін. Жазылу үшін @username-ге хабарлас»"
+            "нәтижені кепілдік беремін. Жазылу үшін @username-ге хабарлас»",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                InlineKeyboardButton(text="⏭ Бас тарту", callback_data="cta_skip"),
+            ]]),
         )
+
+
+@onboarding_router.callback_query(
+    OnboardingState.waiting_cta_text,
+    F.data == "cta_skip"
+)
+async def cb_cta_skip(callback: CallbackQuery, state: FSMContext) -> None:
+    await callback.answer()
+    await callback.message.edit_reply_markup(reply_markup=None)
+    data = await state.get_data()
+    niche = data.get("niche", "")
+    cta = f"📚 Менің {niche} бойынша курсым бар — саған шақырамын!"
+    await state.update_data(cta=cta)
+    await _finish_registration(callback, state)
 
 
 @onboarding_router.message(OnboardingState.waiting_cta_text)
